@@ -9,7 +9,7 @@ from PIL import Image
 import subprocess
 
 from datetime import datetime
-from flask import Flask, request, session, send_file, jsonify, redirect, url_for
+from flask import Flask, Response, request, session, send_file, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from flask_cors import CORS
@@ -388,6 +388,11 @@ def create_video_ffmpeg(images_dir, audio_dir, output_path="slideshow.mp4"):
         
     print(f"Video created successfully at: {output_path}")
 
+def encode(path: str):
+    return '*#*'.join(path.split('/'))
+    
+def decode(path: str):
+    return '/'.join(path.split('*#*'))
 # flask endpoints
 
 @app.route("/setup_api", methods=["POST", "OPTIONS"])
@@ -437,43 +442,65 @@ def upload_file():
         filename = file.filename.split('.')[0]
         video_filename = f"{filename}.mp4"
         output_path = os.path.join(os.path.abspath("static"), video_filename)
-        
         clean_directories(keep_video=output_path)
-        
         pdf_path = save_uploaded_file(file, unique_id)
-        
+
+        video_filename = encode(video_filename)
+        output_path = encode(output_path)
+        pdf_path = encode(pdf_path)
+
+        return jsonify({
+            'pdf_path': pdf_path,
+            'output_path': output_path,
+            'video_filename': video_filename
+        })
+    except Exception as e:
+        print(f"Error during upload: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/upload_progress/<pdf_path>/<output_path>/<video_filename>')
+def upload_progress(pdf_path, output_path, video_filename):
+    pdf_path = decode(pdf_path)
+    output_path = decode(output_path)
+    video_filename = decode(video_filename)
+    api_key = session.get('api_key')
+    def generate():
         try:
             # PDF to images
+            yield "data: Starting PDF conversion...\n\n"
             images = convert_pdf_to_images(pdf_path)
+            yield "data: Converted PDF to images (pages processed).\n\n"
 
             # create scripts for each image
-            scripts = generate_scripts_for_images("output/images", session.get('api_key'))
-            generate_audio_files(scripts, session.get('api_key'))
+            yield "data: Generating scripts for each image...\n\n"
+            scripts = generate_scripts_for_images("output/images", api_key)
+            yield "data: Scripts generated.\n\n"
+
+            yield "data: Generating audio files...\n\n"
+            generate_audio_files(scripts, api_key)
+            yield "data: Audio files generated.\n\n"
 
             # produce final video
+            yield "data: Producing final video...\n\n"
             create_video_ffmpeg("output/images", "output/audio", output_path)
-            
+            # yield "data: Process complete.\n\n"
+
             if not os.path.exists(output_path):
                 raise RuntimeError(f"Video was not created at {output_path}")
             
             # setup QA system with the generated scripts
-            setup_qa_for_chat(scripts, session.get('api_key'))
+            setup_qa_for_chat(scripts, api_key)
             
             # video URL used by the frontend
             video_url = f"/api/static/{video_filename}"
-            
-            return jsonify({
-                'success': True,
-                'video_path': video_url
-            })
+            yield f"data: Process complete. Video available at: {video_url}\n\n"
             
         except Exception as e:
-            print(f"Error during processing: {str(e)}")
-            return jsonify({'error': str(e)}), 500
-            
-    except Exception as e:
-        print(f"Error during upload: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+            yield f"data: Error: {str(e)}--{pdf_path}\n\n"
+            # optionally break out of the generator
+            return
+        
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route("/download_video", methods=["GET"])
 def download_video():

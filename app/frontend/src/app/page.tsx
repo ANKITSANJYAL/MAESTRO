@@ -130,20 +130,45 @@ export default function Home() {
           }
           throw new Error(data.error || 'Error uploading file');
         }
-        
-        if (data.success && data.video_path) {
-          setVideoUrl(data.video_path);
-          setShowChat(true);
-          setError('');
+
+        const {pdf_path, output_path, video_filename} = data
+        if (pdf_path && output_path && video_filename) {
+          subscribeToProgress(pdf_path, output_path, video_filename)
         } else {
           throw new Error('Invalid response from server');
         }
+
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Error uploading file');
-      } finally {
-        setLoading(false);
       }
     }
+  };
+
+  const subscribeToProgress = (pdf_path: string, output_path: string, video_filename: string) => {
+    const encodedPdfPath = encodeURIComponent(pdf_path);
+    const encodedOutputPath = encodeURIComponent(output_path);
+    const encodedVideoPath = encodeURIComponent(video_filename);
+    const evtSource = new EventSource(`${API_CONFIG.baseURL}/upload_progress/${encodedPdfPath}/${encodedOutputPath}/${encodedVideoPath}`);
+    evtSource.onmessage = (event) => {
+      console.log("Progress update:", event.data);
+
+      if (event.data.includes("Process complete")) {
+        const urlPart = event.data.split("Video available at:")[1];
+        if (urlPart) {
+          setVideoUrl(urlPart.trim());
+          setShowChat(true);
+          setError('');
+        }
+        setLoading(false);
+        evtSource.close();
+      }
+    };
+    evtSource.onerror = (err) => {
+      console.error("SSE error:", err);
+      setError("Error occurred during file processing");
+      setLoading(false);
+      evtSource.close();
+    };
   };
 
   const handleAskQuestion = async (e: React.FormEvent) => {
