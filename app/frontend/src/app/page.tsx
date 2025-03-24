@@ -40,7 +40,7 @@ export default function Home() {
     "3. Maintain professional and academic tone\n" +
     "4. If unsure, acknowledge limitations"
   );
-
+  const [progress, setProgress] = useState(-1)
   // session status on component mount
   useEffect(() => {
     const checkSession = async () => {
@@ -150,8 +150,7 @@ export default function Home() {
     const encodedVideoPath = encodeURIComponent(video_filename);
     const evtSource = new EventSource(`${API_CONFIG.baseURL}/upload_progress/${encodedPdfPath}/${encodedOutputPath}/${encodedVideoPath}`);
     evtSource.onmessage = (event) => {
-      console.log("Progress update:", event.data);
-
+      setProgress(() => event.data)
       if (event.data.includes("Process complete")) {
         const urlPart = event.data.split("Video available at:")[1];
         if (urlPart) {
@@ -164,7 +163,6 @@ export default function Home() {
       }
     };
     evtSource.onerror = (err) => {
-      console.error("SSE error:", err);
       setError("Error occurred during file processing");
       setLoading(false);
       evtSource.close();
@@ -406,9 +404,83 @@ export default function Home() {
 
               {/* Loading State */}
               {loading && (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
-                  <p className="mt-4 text-gray-400">Processing your request... Please grab a cup of coffee while we work ☕</p>
+                // <div className="text-center py-4">
+                //   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+                //   <p className="mt-4 text-gray-400">Processing your request... Please grab a cup of coffee while we work ☕</p>
+                // </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="">
+                        {progress > 1 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Image Generated</span>
+                          </div>
+                        }
+                        {progress == 1 &&  
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Image ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 2 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Script Generated</span>
+                          </div>
+                        }
+                        {progress == 2 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Script ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 3 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Audio Generated</span>
+                          </div>
+                        }
+                        {progress == 3 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Audio ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 4 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Video Generated</span>
+                          </div>
+                        }
+                        {progress == 4 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Video ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="col-span-2 justify-center">
+                        {progress == 5 &&
+                          <div className="flex justify-center items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Combining All ...</span>
+                          </div>
+                        }
+                  </div>
                 </div>
               )}
 

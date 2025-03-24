@@ -236,6 +236,7 @@ def convert_pdf_to_images(pdf_path):
     os.makedirs(images_dir, exist_ok=True)
 
     pdf_document = fitz.open(pdf_path)
+    page_count = pdf_document.page_count
     for page_number in tqdm(range(pdf_document.page_count), desc="Converting PDF pages", unit="page"):
         page = pdf_document[page_number]
         zoom = 300 / 72
@@ -246,7 +247,7 @@ def convert_pdf_to_images(pdf_path):
         img_data.save(output_path, 'PNG')
     
     pdf_document.close()
-    return images_dir
+    return page_count
 
 def generate_scripts_for_images(images_dir, api_key):
     """
@@ -467,23 +468,21 @@ def upload_progress(pdf_path, output_path, video_filename):
     def generate():
         try:
             # PDF to images
-            yield "data: Starting PDF conversion...\n\n"
+            yield "data: 1\n\n"
             images = convert_pdf_to_images(pdf_path)
-            yield "data: Converted PDF to images (pages processed).\n\n"
-
+            if images < 10:
+                time.sleep(2)
             # create scripts for each image
-            yield "data: Generating scripts for each image...\n\n"
+            yield "data: 2\n\n"
             scripts = generate_scripts_for_images("output/images", api_key)
-            yield "data: Scripts generated.\n\n"
 
-            yield "data: Generating audio files...\n\n"
+            yield "data: 3\n\n"
             generate_audio_files(scripts, api_key)
-            yield "data: Audio files generated.\n\n"
 
             # produce final video
-            yield "data: Producing final video...\n\n"
+            yield "data: 4\n\n"
             create_video_ffmpeg("output/images", "output/audio", output_path)
-            # yield "data: Process complete.\n\n"
+            yield "data: 5\n\n"
 
             if not os.path.exists(output_path):
                 raise RuntimeError(f"Video was not created at {output_path}")
@@ -493,6 +492,7 @@ def upload_progress(pdf_path, output_path, video_filename):
             
             # video URL used by the frontend
             video_url = f"/api/static/{video_filename}"
+            time.sleep(2)
             yield f"data: Process complete. Video available at: {video_url}\n\n"
             
         except Exception as e:
