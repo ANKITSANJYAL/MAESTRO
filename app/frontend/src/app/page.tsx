@@ -40,7 +40,7 @@ export default function Home() {
     "3. Maintain professional and academic tone\n" +
     "4. If unsure, acknowledge limitations"
   );
-
+  const [progress, setProgress] = useState(-1)
   // session status on component mount
   useEffect(() => {
     const checkSession = async () => {
@@ -130,20 +130,43 @@ export default function Home() {
           }
           throw new Error(data.error || 'Error uploading file');
         }
-        
-        if (data.success && data.video_path) {
-          setVideoUrl(data.video_path);
-          setShowChat(true);
-          setError('');
+
+        const {pdf_path, output_path, video_filename} = data
+        if (pdf_path && output_path && video_filename) {
+          subscribeToProgress(pdf_path, output_path, video_filename)
         } else {
           throw new Error('Invalid response from server');
         }
+
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Error uploading file');
-      } finally {
-        setLoading(false);
       }
     }
+  };
+
+  const subscribeToProgress = (pdf_path: string, output_path: string, video_filename: string) => {
+    const encodedPdfPath = encodeURIComponent(pdf_path);
+    const encodedOutputPath = encodeURIComponent(output_path);
+    const encodedVideoPath = encodeURIComponent(video_filename);
+    const evtSource = new EventSource(`${API_CONFIG.baseURL}/upload_progress/${encodedPdfPath}/${encodedOutputPath}/${encodedVideoPath}`);
+    evtSource.onmessage = (event) => {
+      setProgress(() => event.data)
+      if (event.data.includes("Process complete")) {
+        const urlPart = event.data.split("Video available at:")[1];
+        if (urlPart) {
+          setVideoUrl(urlPart.trim());
+          setShowChat(true);
+          setError('');
+        }
+        setLoading(false);
+        evtSource.close();
+      }
+    };
+    evtSource.onerror = (err) => {
+      setError("Error occurred during file processing");
+      setLoading(false);
+      evtSource.close();
+    };
   };
 
   const handleAskQuestion = async (e: React.FormEvent) => {
@@ -381,9 +404,83 @@ export default function Home() {
 
               {/* Loading State */}
               {loading && (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
-                  <p className="mt-4 text-gray-400">Processing your request... Please grab a cup of coffee while we work ☕</p>
+                // <div className="text-center py-4">
+                //   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+                //   <p className="mt-4 text-gray-400">Processing your request... Please grab a cup of coffee while we work ☕</p>
+                // </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="">
+                        {progress > 1 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Image Generated</span>
+                          </div>
+                        }
+                        {progress == 1 &&  
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Image ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 2 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Script Generated</span>
+                          </div>
+                        }
+                        {progress == 2 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Script ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 3 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Audio Generated</span>
+                          </div>
+                        }
+                        {progress == 3 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Audio ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="">
+                        {progress > 4 &&
+                          <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Video Generated</span>
+                          </div>
+                        }
+                        {progress == 4 &&
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Generating Video ...</span>
+                          </div>
+                        }
+                  </div>
+                  <div className="col-span-2 justify-center">
+                        {progress == 5 &&
+                          <div className="flex justify-center items-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
+                            <span>Combining All ...</span>
+                          </div>
+                        }
+                  </div>
                 </div>
               )}
 
