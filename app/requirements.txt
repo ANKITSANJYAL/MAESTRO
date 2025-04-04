@@ -13,3 +13,6 @@ langchain-openai
 langchain-community
 tqdm 
 ffmpeg-python
+openai
+requests
+pyht
