@@ -133,6 +133,7 @@ export default function Home() {
   };
 
   const handleChange = () => {
+    setVoiceType(!isChecked ? "custom" : "default")
     setIsChecked(!isChecked);
   }
 
@@ -156,8 +157,8 @@ export default function Home() {
       if (loading) return;
 
       const formData = new FormData();
-      formData.append('voice_type', voiceType)
       pdfFile && formData.append('pdf_file', pdfFile);
+      formData.append('voice_type', voiceType)
       if (isChecked && voiceType == 'custom') {
         audioFile && formData.append('audio_file', audioFile);
         formData.append('voice_source', voiceSource)
@@ -168,6 +169,14 @@ export default function Home() {
       setError('');
       
       try {
+
+        if (isChecked && !audioFile) {
+          throw new Error('No audio file found.');
+        }
+        if (isChecked && (!playhtApiKey || !playhtUserId )) {
+          throw new Error('Please set your playht key and id.');
+        }
+        
         const response = await fetch(`${API_CONFIG.baseURL}/upload_file`, {
           method: 'POST',
           body: formData,
@@ -307,7 +316,7 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 h-[calc(100vh-20px)] overflow-y-scroll scrollbar-custom">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[calc(100vh-20px)] overflow-y-scroll scrollbar-custom">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Chat Settings</h3>
             <button
@@ -491,13 +500,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Images generated for slide</span>
+                            <span>Images generated for slides</span>
                           </div>
                         }
                         {progress == 1 &&  
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating images for slide ...</span>
+                            <span>Generating images for slides ...</span>
                           </div>
                         }
                   </div>
@@ -507,13 +516,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Scripts generated for slide</span>
+                            <span>Scripts generated for slides</span>
                           </div>
                         }
                         {progress == 2 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating scripts for slide ...</span>
+                            <span>Generating scripts for slides ...</span>
                           </div>
                         }
                   </div>
@@ -523,13 +532,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Audio generated for slide</span>
+                            <span>Audio generated for slides</span>
                           </div>
                         }
                         {progress == 3 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating audio for slide ...</span>
+                            <span>Generating audio for slides ...</span>
                           </div>
                         }
                   </div>
@@ -539,13 +548,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Video generated for slide</span>
+                            <span>Video generated for slides</span>
                           </div>
                         }
                         {progress == 4 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating video for slide...</span>
+                            <span>Generating video for slides...</span>
                           </div>
                         }
                   </div>
