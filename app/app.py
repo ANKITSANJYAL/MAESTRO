@@ -9,7 +9,7 @@ from PIL import Image
 import subprocess
 
 from datetime import datetime
-from flask import Flask, Response, request, session, send_file, jsonify, redirect, url_for
+from flask import Flask, Response, request, session, send_file, jsonify, redirect, url_for, render_template, send_from_directory, flash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from flask_cors import CORS
@@ -23,12 +23,17 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+#for voice clonning
+import requests
+from pyht import Client, TTSOptions, Format
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "..."
-
+app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'mp3'}
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['OUTPUT_FOLDER'] = 'output'
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE='None',
@@ -202,23 +207,94 @@ Speaking style:
         print(f"Error generating script for slide {slide_number}: {str(e)}")
         return "", messages
 
-def generate_audio(script_text, slide_number, output_dir, api_key=None):
-    """
-    Create an MP3 from script_text using your specialized TTS endpoint.
-    """
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+# def generate_audio(script_text, slide_number, output_dir, api_key=None):
+#     """
+#     Create an MP3 from script_text using your specialized TTS endpoint.
+#     """
+#     from openai import OpenAI
+#     client = OpenAI(api_key=api_key)
     
-    response = client.audio.speech.create(
-        model="tts-1",
-        voice="alloy",
-        input=script_text
-    )
+#     response = client.audio.speech.create(
+#         model="tts-1",
+#         voice="alloy",
+#         input=script_text
+#     )
     
+#     audio_path = os.path.join(output_dir, f"slide_{slide_number}.mp3")
+#     response.stream_to_file(audio_path)
+#     time.sleep(1)  # small delay to ensure file is written
+#     return audio_path
+
+def generate_audio(script_text, slide_number, output_dir, api_key, custom_voice_id, user_id=None):
     audio_path = os.path.join(output_dir, f"slide_{slide_number}.mp3")
-    response.stream_to_file(audio_path)
-    time.sleep(1)  # small delay to ensure file is written
+    
+    if custom_voice_id != 'none':
+        # Use Play.ht for custom cloned voice
+        print(f"Generating audio for slide {slide_number} with user_id: {user_id}, api_key: {api_key}, voice_id: {custom_voice_id}")  # Debug print
+
+        client = Client(user_id, api_key)  # PlayHT client
+
+        # Configure the TTS options
+        options = TTSOptions(
+            voice=custom_voice_id,  # Use custom voice ID
+            format=Format.FORMAT_MP3,
+            speed=0.9,
+            temperature=0.1,
+            quality='Premium',
+            voice_guidance=1,
+            style_guidance=1,
+            sample_rate=24000
+        )
+
+        # Split the script text into chunks for processing
+        text_chunks = split_text_into_chunks(script_text)
+
+        # Generate the audio for each chunk and save it to the file
+        with open(audio_path, "wb") as audio_file:
+            for chunk_text in text_chunks:
+                if chunk_text.strip():  # Ensure chunk is not empty
+                    try:
+                        # Send the chunk to Play.ht and write the audio stream to the file
+                        for chunk in client.tts(text=chunk_text, voice_engine="Play3.0-mini", options=options):
+                            audio_file.write(chunk)
+                    except Exception as e:
+                        print(f"Error processing chunk for slide {slide_number}: {repr(chunk_text)}")
+                        print(f"Exception: {e}")
+
+        print(f"Audio for slide {slide_number} generated using Play.ht.")
+    else:
+        # Use OpenAI's default TTS
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=script_text
+        )
+        response.stream_to_file(audio_path)
+    
+    time.sleep(1)  # Small delay to ensure file is written
     return audio_path
+
+def split_text_into_chunks(text, max_lines=6, max_chars=500):
+    lines = re.split(r'(?<=\]) ', text)  # Split while preserving section headers and timestamps
+    chunks = []
+    chunk = []
+    char_count = 0
+
+    for line in lines:
+        if char_count + len(line) <= max_chars and len(chunk) < max_lines:
+            chunk.append(line)
+            char_count += len(line)
+        else:
+            chunks.append(" ".join(chunk))
+            chunk = [line]
+            char_count = len(line)
+
+    if chunk:
+        chunks.append(" ".join(chunk))
+
+    return chunks
 
 def natural_sort_key(s):
     """
@@ -287,22 +363,59 @@ def generate_scripts_for_images(images_dir, api_key):
 
     return scripts_list
 
-def generate_audio_files(scripts_list, api_key):
-    """
-    Generate MP3 audio for each script, saved in output/audio/.
-    """
-    audio_dir = "output/audio"
-    os.makedirs(audio_dir, exist_ok=True)
+# def generate_audio_files(scripts_list, api_key):
+#     """
+#     Generate MP3 audio for each script, saved in output/audio/.
+#     """
+#     audio_dir = "output/audio"
+#     os.makedirs(audio_dir, exist_ok=True)
 
+#     for i, script_text in enumerate(scripts_list, start=1):
+#         if not script_text.strip():
+#             print(f"Warning: Script for slide {i} is empty. Skipping audio generation.")
+#             continue
+#         audio_path = generate_audio(script_text, i, audio_dir, api_key=api_key)
+#         if not (os.path.exists(audio_path) and os.path.getsize(audio_path) > 0):
+#             print(f"Warning: Audio file {audio_path} not created properly")
+
+#     return audio_dir
+
+# Function to generate audio files
+def generate_audio_files(scripts_list, openai_api_key, custom_voice_id, playht_api_key=None, user_id=None):
+    """
+    Generate audio files for the given scripts using either OpenAI TTS or Play.ht custom voice.
+        str: Path to the directory containing the generated audio files.
+    """
+    audio_dir = os.path.join(app.config['OUTPUT_FOLDER'], 'audio')
+    os.makedirs(audio_dir, exist_ok=True)
+    
     for i, script_text in enumerate(scripts_list, start=1):
         if not script_text.strip():
             print(f"Warning: Script for slide {i} is empty. Skipping audio generation.")
             continue
-        audio_path = generate_audio(script_text, i, audio_dir, api_key=api_key)
-        if not (os.path.exists(audio_path) and os.path.getsize(audio_path) > 0):
-            print(f"Warning: Audio file {audio_path} not created properly")
-
+        
+        try:
+            if custom_voice_id != 'none':
+                # Use Play.ht for custom voice
+                if not playht_api_key or not user_id:
+                    raise ValueError("Play.ht API key and user ID are required for custom voice generation.")
+                audio_path = generate_audio(
+                    script_text, i, audio_dir, playht_api_key, custom_voice_id, user_id
+                )
+            else:
+                # Use OpenAI TTS for default voice
+                audio_path = generate_audio(
+                    script_text, i, audio_dir, openai_api_key, custom_voice_id
+                )
+            
+            # Verify the audio file was created
+            if not (os.path.exists(audio_path) and os.path.getsize(audio_path) > 0):
+                print(f"Warning: Audio file {audio_path} not created properly")
+        except Exception as e:
+            print(f"Error generating audio for slide {i}: {e}")
+    
     return audio_dir
+
 
 def get_audio_duration(audio_path):
     """
@@ -394,6 +507,10 @@ def encode(path: str):
     
 def decode(path: str):
     return '/'.join(path.split('*#*'))
+
+# Helper function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 # flask endpoints
 
 @app.route("/setup_api", methods=["POST", "OPTIONS"])
@@ -403,6 +520,7 @@ def setup_api():
     
     data = request.get_json() or {}
     api_key = data.get('api_key', '').strip()
+
     if not api_key:
         return jsonify({"error": "API key cannot be empty"}), 400
     if not api_key.startswith('sk-'):
@@ -416,11 +534,15 @@ def setup_api():
 def check_session():
     """Check if the session has an API key."""
     api_key = session.get('api_key')
+    playht_user_id = session.get('playht_user_id')
+    playht_api_key = session.get('playht_api_key')
     return jsonify({
         "has_session": bool(api_key),
         "api_key_set": bool(api_key),
         "status": "active",
-        "server_time": datetime.now().isoformat()
+        "server_time": datetime.now().isoformat(),
+        'playht_user_id': playht_user_id,
+        'playht_api_key': playht_api_key
     })
 
 @app.route('/upload_file', methods=['POST'])
@@ -431,6 +553,33 @@ def upload_file():
 
     if 'pdf_file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
+
+    voice_type = request.form['voice_type']
+    # Handle custom voice
+    custom_voice_id = 'none'
+    if voice_type == 'custom':
+        custom_voice_file = request.files['audio_file']
+        voice_source = request.form['voice_source']  # 'upload' or 'record'
+        playht_user_id = request.form['playht_user_id']
+        playht_api_key = request.form['playht_api_key']
+        if voice_type == 'custom' and (not playht_api_key or not playht_user_id):
+                return jsonify({"error": "Invalid Play.ht API key"})
+        session['playht_user_id'] = playht_user_id
+        session['playht_api_key'] = playht_api_key
+
+        if voice_source == 'upload' and custom_voice_file and allowed_file(custom_voice_file.filename):
+            # Save the uploaded custom voice file
+            custom_voice_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(custom_voice_file.filename))
+            custom_voice_file.save(custom_voice_path)
+        elif voice_source == 'record' and custom_voice_file and allowed_file(custom_voice_file.filename):
+            # Save the recorded custom voice file
+            custom_voice_path = os.path.join(app.config['UPLOAD_FOLDER'], 'recorded_voice.mp3')
+            custom_voice_file.save(custom_voice_path)
+        
+        # Get the custom voice ID
+        custom_voice_id = get_voice_id(custom_voice_path, playht_api_key, playht_user_id)
+        if not custom_voice_id:
+            return jsonify({"error": "Failed to generate custom voice. Try again!"})
 
     file = request.files['pdf_file']
     if not file.filename.endswith('.pdf'):
@@ -446,25 +595,43 @@ def upload_file():
         clean_directories(keep_video=output_path)
         pdf_path = save_uploaded_file(file, unique_id)
 
-        video_filename = encode(video_filename)
-        output_path = encode(output_path)
-        pdf_path = encode(pdf_path)
+        session['video_filename'] = video_filename
+        session['output_path'] = output_path
+        session['pdf_path'] = pdf_path
+        session['custom_voice_id'] = custom_voice_id
 
         return jsonify({
-            'pdf_path': pdf_path,
-            'output_path': output_path,
-            'video_filename': video_filename
+            'msg': 'successfuly uploaded',
         })
     except Exception as e:
         print(f"Error during upload: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/upload_progress/<pdf_path>/<output_path>/<video_filename>')
-def upload_progress(pdf_path, output_path, video_filename):
-    pdf_path = decode(pdf_path)
-    output_path = decode(output_path)
-    video_filename = decode(video_filename)
+def get_voice_id(audio_path, api_key, user_id):
+    url = "https://api.play.ht/api/v2/cloned-voices/instant"
+
+    files = {"sample_file": (os.path.basename(audio_path), open(audio_path, "rb"), "audio/mpeg")}
+    payload = {"voice_name": "custom-voice"}
+    headers = {
+        "accept": "application/json",
+        "AUTHORIZATION": api_key,
+        "X-USER-ID": user_id
+    }
+
+    response = requests.post(url, data=payload, files=files, headers=headers)
+    response_data = response.json()
+    voice_id = response_data.get("id")
+    return voice_id
+
+@app.route('/upload_progress')
+def upload_progress():
+    pdf_path = session.get('pdf_path')
+    output_path = session.get('output_path')
+    video_filename = session.get('video_filename')
+    custom_voice_id = session.get('custom_voice_id')
     api_key = session.get('api_key')
+    playht_user_id = session.get('playht_user_id') 
+    playht_api_key = session.get('playht_api_key') 
     def generate():
         try:
             # PDF to images
@@ -477,7 +644,7 @@ def upload_progress(pdf_path, output_path, video_filename):
             scripts = generate_scripts_for_images("output/images", api_key)
 
             yield "data: 3\n\n"
-            generate_audio_files(scripts, api_key)
+            generate_audio_files(scripts, api_key, custom_voice_id, playht_api_key, playht_user_id)
 
             # produce final video
             yield "data: 4\n\n"

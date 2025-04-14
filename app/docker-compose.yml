@@ -30,7 +30,7 @@ services:
   nginx:
     build:
       context: ./nginx
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile 
     ports:
       - "80:80"
     networks:

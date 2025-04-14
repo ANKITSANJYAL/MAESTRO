@@ -23,6 +23,15 @@ const getFetchOptions = (method: string, body?: any) => ({
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
+  const [isChecked, setIsChecked] = useState(false)
+  const [pdfFileName, setPdfFileName] = useState('')
+  const [audioFileName, setAudioFileName] = useState('')
+  const [pdfFile, setPdfFile] = useState<File>()
+  const [audioFile, setAudioFile] = useState<File>()
+  const [voiceType, setVoiceType] = useState('default')
+  const [voiceSource, setVoiceSource] = useState('upload')
+  const [playhtUserId, setPlayhtUserId] = useState('')
+  const [playhtApiKey, setPlayhtApiKey] = useState('')
   const [loading, setLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -41,7 +50,13 @@ export default function Home() {
     "4. If unsure, acknowledge limitations"
   );
   const [progress, setProgress] = useState(-1)
-  // session status on component mount
+  const [recordingModule, setRecordingModule] = useState<{
+    startRecording: () => Promise<void>;
+    stopRecording: () => void;
+  } | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState<any>('');
+ 
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -55,8 +70,10 @@ export default function Home() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const data = await response.json();
-        setApiKeySet(data.api_key_set);
+        const {api_key_set, playht_api_key, playht_user_id} = await response.json();
+        setApiKeySet(api_key_set);
+        playht_api_key && setPlayhtApiKey(playht_api_key)
+        playht_user_id && setPlayhtUserId(playht_user_id)
       } catch (error) {
         setError('Failed to connect to server. Make sure backend is running on port 8080');
       }
@@ -72,6 +89,18 @@ export default function Home() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+
+  useEffect(() => {
+    const loadRecording = async () => {
+      const module = await import('../utils/recording');
+      setRecordingModule({
+        startRecording: module.startRecording,
+        stopRecording: module.stopRecording
+      });
+    };
+    loadRecording();
+  }, []);
 
   const handleApiKeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,17 +132,51 @@ export default function Home() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = () => {
+    setVoiceType(!isChecked ? "custom" : "default")
+    setIsChecked(!isChecked);
+  }
+
+  const handleAudioUpload = async (event: any) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setFile(file);
-      const formData = new FormData();
-      formData.append('pdf_file', file);
+    setAudioFileName(file?.name)
+    setAudioFile(file)
+    setAudioURL(URL.createObjectURL(file));
+    setVoiceSource('upload')
+    setVoiceType('custom')
+  }
+
+  const handlePdfUpload = async (event: any) => {
+    const file = event.target.files?.[0];
+    setPdfFileName(file?.name)
+    setPdfFile(file)
+  }
+
+  const handleFileUpload = async () => {
       
+      if (loading) return;
+
+      const formData = new FormData();
+      pdfFile && formData.append('pdf_file', pdfFile);
+      formData.append('voice_type', voiceType)
+      if (isChecked && voiceType == 'custom') {
+        audioFile && formData.append('audio_file', audioFile);
+        formData.append('voice_source', voiceSource)
+        formData.append('playht_api_key', playhtApiKey)
+        formData.append('playht_user_id', playhtUserId)
+      }
       setLoading(true);
       setError('');
       
       try {
+
+        if (isChecked && !audioFile) {
+          throw new Error('No audio file found.');
+        }
+        if (isChecked && (!playhtApiKey || !playhtUserId )) {
+          throw new Error('Please set your playht key and id.');
+        }
+        
         const response = await fetch(`${API_CONFIG.baseURL}/upload_file`, {
           method: 'POST',
           body: formData,
@@ -131,9 +194,9 @@ export default function Home() {
           throw new Error(data.error || 'Error uploading file');
         }
 
-        const {pdf_path, output_path, video_filename} = data
-        if (pdf_path && output_path && video_filename) {
-          subscribeToProgress(pdf_path, output_path, video_filename)
+        
+        if (data.msg == 'successfuly uploaded') {
+          subscribeToProgress()
         } else {
           throw new Error('Invalid response from server');
         }
@@ -141,14 +204,10 @@ export default function Home() {
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Error uploading file');
       }
-    }
   };
 
-  const subscribeToProgress = (pdf_path: string, output_path: string, video_filename: string) => {
-    const encodedPdfPath = encodeURIComponent(pdf_path);
-    const encodedOutputPath = encodeURIComponent(output_path);
-    const encodedVideoPath = encodeURIComponent(video_filename);
-    const evtSource = new EventSource(`${API_CONFIG.baseURL}/upload_progress/${encodedPdfPath}/${encodedOutputPath}/${encodedVideoPath}`);
+  const subscribeToProgress = () => {
+    const evtSource = new EventSource(`${API_CONFIG.baseURL}/upload_progress`);
     evtSource.onmessage = (event) => {
       setProgress(() => event.data)
       if (event.data.includes("Process complete")) {
@@ -257,7 +316,7 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 h-[calc(100vh-20px)] overflow-y-scroll scrollbar-custom">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[calc(100vh-20px)] overflow-y-scroll scrollbar-custom">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Chat Settings</h3>
             <button
@@ -341,6 +400,32 @@ export default function Home() {
     );
   };
 
+  const handleRecording = async () => {
+    if (!recordingModule) return;
+
+    if (recording) {
+      const blob = await recordingModule.stopRecording();
+      // @ts-ignore-next-line (ignores the next line)
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url);
+      
+      await new Promise<void>((resolve) => {
+        audio.onloadedmetadata = () => resolve();
+        setTimeout(resolve, 1000); 
+      });
+      // @ts-ignore-next-line (ignores the next line)
+      const file = new File([blob], 'recorded_voice.mp3', { type: 'audio/mp3' });
+      setAudioFile(file)
+      setAudioURL(url);
+      setAudioFileName('recorded.mp3')
+      setVoiceSource('record')
+      setVoiceType('custom')
+    } else {
+      await recordingModule.startRecording();
+    }
+    setRecording(!recording);
+  };
+
   return (
     <main className="min-h-screen bg-white dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-white transition-colors duration-200">
       <div className="container mx-auto px-4 py-16">
@@ -415,13 +500,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Image Generated</span>
+                            <span>Images generated for slides</span>
                           </div>
                         }
                         {progress == 1 &&  
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating Image ...</span>
+                            <span>Generating images for slides ...</span>
                           </div>
                         }
                   </div>
@@ -431,13 +516,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Script Generated</span>
+                            <span>Scripts generated for slides</span>
                           </div>
                         }
                         {progress == 2 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating Script ...</span>
+                            <span>Generating scripts for slides ...</span>
                           </div>
                         }
                   </div>
@@ -447,13 +532,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Audio Generated</span>
+                            <span>Audio generated for slides</span>
                           </div>
                         }
                         {progress == 3 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating Audio ...</span>
+                            <span>Generating audio for slides ...</span>
                           </div>
                         }
                   </div>
@@ -463,13 +548,13 @@ export default function Home() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-6 h-6 mr-2 text-green-500">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            <span>Video Generated</span>
+                            <span>Video generated for slides</span>
                           </div>
                         }
                         {progress == 4 &&
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mr-2"></div>
-                            <span>Generating Video ...</span>
+                            <span>Generating video for slides...</span>
                           </div>
                         }
                   </div>
@@ -486,28 +571,82 @@ export default function Home() {
 
               {/* File Upload Section */}
               {apiKeySet && !videoUrl && (
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor={loading ? "" : "file-upload"}
-                    className={`flex flex-col items-center ${loading ? "cursor-default" : "cursor-pointer"}`}
+                <>
+                  <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                    <span className="absolute text-gray-500 bg-gray-100 dark:bg-gray-800 left-2 -top-3 px-2">Upload Slide</span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handlePdfUpload}
+                      className="hidden"
+                      id="file-upload"
+                      required
+                    />
+                    <label
+                      htmlFor={loading ? "" : "file-upload"}
+                      className={`flex flex-col items-center ${loading ? "cursor-default" : "cursor-pointer"}`}
 
-                  >
-                    <ArrowUpTrayIcon className="h-12 w-12 text-gray-400 mb-4" />
-                    <span className={`text-lg font-medium ${loading ? "text-gray-500" : " text-gray-300"}`}>
-                      Drop your PDF here or click to upload
-                    </span>
-                    <span className="text-sm text-gray-500 mt-2">
-                      PDF files up to 50MB
-                    </span>
-                  </label>
-                </div>
+                    >
+                      <ArrowUpTrayIcon className="h-12 w-12 text-gray-400 mb-4" />
+                      <span className={`text-lg font-medium ${loading ? "text-gray-500" : " text-gray-300"}`}>
+                        {pdfFileName ? `${pdfFileName}` : 'Drop your PDF here or click to upload'}
+                      </span>
+                      <span className="text-sm text-gray-500 mt-2">
+                        PDF files up to 50MB
+                      </span>
+                    </label>
+                  </div>
+                  <div className={`relative ${isChecked ? "" : "!mt-0"}`}>
+                    {isChecked && <span className="absolute text-gray-500 bg-gray-100 dark:bg-gray-800 left-2 -top-3 px-2 z-1">Upload Voice</span>}
+                    <div className={`border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center flex flex-col items-center transition-all duration-300 ease-in-out overflow-hidden ${isChecked ? 'p-8 opacity-100 h-auto' : 'opacity-0 h-0'}`}>
+                      <input className="w-full mb-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" onChange={(e) => setPlayhtApiKey(e.target.value)} value={playhtApiKey} type="password" placeholder="Playht API Key" required/>
+                      <input className="w-full mb-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" onChange={(e) => setPlayhtUserId(e.target.value)} value={playhtUserId} type="password" placeholder="Playht User Id" required/>
+                      <div className="w-full flex items-center justify-between">
+                          {/* Upload MP3 */}
+                          <div className="flex-1 bg-blue-500 text-white font-semibold rounded-lg transition-colors mr-1">
+                              <label htmlFor="custom_voice" className="w-full cursor-pointer py-2 block">
+                                Upload 
+                              </label>
+                              <input type="file" id="custom_voice" className="hidden" onChange={handleAudioUpload} name="custom_voice" accept=".mp3"/>
+                          </div>
+                          
+                          {/* Record Voice */}
+                          <button 
+                            onClick={handleRecording}
+                            disabled={!navigator.mediaDevices}
+                            className="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg transition-colors ml-1"
+                          >
+                            {recording ? 
+                                        <div className="flex justify-center items-center">
+                                          <div className="w-4 h-4 mr-1 rounded-full bg-red-500/80 animate-[pulse_.75s_ease-in-out_infinite] hover:animate-none"></div>
+                                          Stop
+                                        </div>
+                                        : 
+                                        <div>Record</div> 
+                                        }
+                          </button>
+                      </div>
+                    </div>
+                  </div>
+                  {isChecked && audioURL && (
+                      <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center flex flex-col items-center justify-center">
+                        <span className="absolute text-gray-500 bg-gray-100 dark:bg-gray-800 left-2 -top-3 px-2">Check Voice</span>
+                        <audio 
+                          src={audioURL} 
+                          controls 
+                          className="my-2 h=[40px]"
+                        />
+                        <div className={`text-lg font-medium ${loading ? "text-gray-500" : " text-gray-300"}`}>
+                          {audioFileName ? `${audioFileName}` : ''}
+                        </div>
+                      </div>
+                        )}
+                  <div className="!mt-2 flex items-center">
+                    <input type="checkbox" checked={isChecked} onChange={handleChange} className="appearance-none w-5 h-5 cursor-pointer rounded border border-slate-300 bg-transparent checked:bg-blue-600 relative after:absolute after:content-[''] after:block after:w-2 after:h-3 after:border-r-2 after:border-b-2 after:border-white after:rotate-45 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 checked:after:opacity-100 after:opacity-0 transition-all focus:ring-0"/>
+                    <span className="text-gray-500 ml-2">Use custom voice</span>
+                  </div>
+                  <button className={`w-full bg-blue-500 text-white font-semibold px-6 py-2 rounded-lg transition-colors !mt-2 ${loading ? "cursor-default" : "cursor-pointer"}`} onClick={handleFileUpload}>Generate Video</button>
+                </>
               )}
 
               {/* Video and Chat Section */}
@@ -523,6 +662,9 @@ export default function Home() {
                           setFile(null);
                           setQuestion('');
                           setAnswer('');
+                          setIsChecked(false)
+                          setPdfFileName('')
+                          setAudioFileName('')
                         }}
                         className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                       >
