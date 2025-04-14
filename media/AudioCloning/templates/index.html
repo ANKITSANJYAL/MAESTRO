@@ -7,7 +7,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
+    
     <div class="container">
+        <a href="/playlist">
+            <button>Watch Videos</button>
+          </a>
+          
         <h1>Welcome to PDF to Video Converter</h1>
         <p>Upload your PDF and convert it into a video with audio narration.</p>
         
@@ -24,13 +29,14 @@
             <label for="openai_key">OpenAI API Key:</label>
             <input type="text" id="openai_key" name="openai_key" required>
             
-            <label for="playht_user_id">Play.ht User ID:</label>
-            <input type="text" id="playht_user_id" name="playht_user_id">
+            <label for="user_id">Enter your unique ID:</label>
+            <input type="text" name="user_id" required>
             
-            <label for="playht_api_key">Play.ht API Key:</label>
+            <!-- <label for="playht_api_key">Play.ht API Key:</label>
             <input type="text" id="playht_api_key" name="playht_api_key">
-            
+              -->
             <button type="submit">Get Started</button>
+            
         </form>
     </div>
 </body>

@@ -1,0 +1,54 @@
+<!-- templates/playlist.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Playlist</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="playlist-page">
+
+    <div class="container">
+        <h1>Generated Video Playlist</h1>
+        <form method="POST" class="user-id-form">
+            <label for="user_id">Have a unique ID? Enter it to view your videos:</label>
+            <input type="text" name="user_id" placeholder="Enter your ID" required>
+            <button type="submit" class="btn">View My Videos</button>
+          </form>
+          
+          <hr>
+          
+        <!-- Display flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Playlist Videos -->
+        {% if videos %}
+            {% for video in videos %}
+                <div class="video-container" style="margin-bottom: 30px;">
+                    <video controls controlsList="nodownload">
+                        {% if from_mongo %}
+                          <source src="{{ url_for('serve_mongo_video', filename=video) }}" type="video/mp4">
+                        {% else %}
+                          <source src="{{ url_for('serve_video', filename=video) }}" type="video/mp4">
+                        {% endif %}
+                      </video>
+                      
+                    <p>{{ video }}</p>
+                    <a href="{{ url_for('serve_video', filename=video) }}" download class="btn download-btn">Download</a>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No videos found.</p>
+        {% endif %}
+
+        <a href="/" class="btn">← Back to Home</a>
+    </div>
+</body>
+</html>

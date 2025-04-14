@@ -8,14 +8,24 @@ body {
     align-items: center;
     height: 100vh;
 }
+body.playlist-page {
+    margin: 0;
+    padding: 0;
+    display: block;
+    height: auto;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
 
 .container {
     background-color: #fff;
     padding: 20px;
+    margin: 0 auto;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 500px;
+    max-width: 900px;
     text-align: center;
 }
 
@@ -142,4 +152,32 @@ video {
 
 .download-btn:hover {
     background-color: #218838;
+}
+
+.user-id-form {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.user-id-form input {
+    padding: 10px;
+    width: 250px;
+    margin-right: 10px;
+}
+
+.user-id-form button {
+    padding: 10px 15px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+
+.profile-box {
+    background-color: #e7f3ff;
+    border: 1px solid #007BFF;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    font-size: 14px;
 }

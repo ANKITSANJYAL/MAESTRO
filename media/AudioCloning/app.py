@@ -13,6 +13,9 @@ from pyht import Client, TTSOptions, Format
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session
 from werkzeug.utils import secure_filename
 import pymupdf  # Correct import for PyMuPDF
+from flask import Response
+from mongo_setup import save_video_to_mongo, get_all_video_filenames, get_video_file_by_name, fs
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -406,14 +409,15 @@ def index():
 
 @app.route('/home', methods=['POST'])
 def home():
-    if 'openai_key' not in request.form or 'playht_user_id' not in request.form or 'playht_api_key' not in request.form:
+    if 'openai_key' not in request.form:
         flash("Missing API credentials. Please enter your API keys and user ID.", "error")
         return redirect(url_for('index'))
     
     # Store the API keys and user ID in the session
     session['openai_key'] = request.form['openai_key']
-    session['playht_user_id'] = request.form['playht_user_id']
-    session['playht_api_key'] = request.form['playht_api_key']
+    session['user_id'] = request.form['user_id']
+    # session['playht_user_id'] = request.form['playht_user_id']
+    # session['playht_api_key'] = request.form['playht_api_key']
     
     return render_template('home.html')
 
@@ -425,14 +429,19 @@ def upload_file():
         return redirect(url_for('index'))
     
     openai_key = session['openai_key']
-    playht_user_id = session.get('playht_user_id')  # Optional for default voice
-    playht_api_key = session.get('playht_api_key')  # Optional for default voice
-    
+    playht_user_id = "jWK4UiQgtyaC3vc4ugbYu0rPGks2"  # Optional for default voice
+    playht_api_key = "5ba9a3abbbd641709b0d6445ce09269e"  # Optional for default voice
+    video_name = request.form.get("video_name")
+
     voice_type = request.form['voice_type']
     pdf_file = request.files['pdf']
     custom_voice_file = request.files.get('custom_voice')
     voice_source = request.form.get('voice_source')  # 'upload' or 'record'
     
+    safe_video_name = "".join(c for c in video_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+    
+    session['video_name'] = safe_video_name
+
     if pdf_file and allowed_file(pdf_file.filename):
         # Save the PDF file
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(pdf_file.filename))
@@ -472,14 +481,14 @@ def upload_file():
         
         # Generate a unique video filename
         timestamp = int(time.time())
-        video_filename = f"slideshow_{timestamp}.mp4"
-        video_path = os.path.join(app.config['OUTPUT_FOLDER'], video_filename)
+        filename = f"{safe_video_name}.mp4"
+        video_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
         
         # Create the video
         create_video_ffmpeg(images_dir, audio_dir, output_path=video_path)
         
         # Pass the unique video filename to the result page
-        return redirect(url_for('result', video_filename=video_filename))
+        return redirect(url_for('result', video_filename=filename))
     
     flash("Invalid file uploaded. Please upload a PDF file.", "error")
     return redirect(url_for('home'))
@@ -490,18 +499,56 @@ def result():
     if not video_filename:
         flash("Video not found. Please try again.", "error")
         return redirect(url_for('home'))
-    
+
     video_path = os.path.join(app.config['OUTPUT_FOLDER'], video_filename)
     if not os.path.exists(video_path):
         flash("Video not found. Please try again.", "error")
         return redirect(url_for('home'))
-    
+
+    # Save to MongoDB (only if not already saved)
+    user_id = session['user_id']  
+    save_video_to_mongo(video_path, video_filename, user_id)
+
+
     video_url = url_for('serve_video', filename=video_filename)
     return render_template('result.html', video_url=video_url)
+
 
 @app.route('/video/<filename>')
 def serve_video(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+
+@app.route('/mongo_video/<filename>')
+def serve_mongo_video(filename):
+    file = get_video_file_by_name(filename)
+    if not file:
+        flash("Video not found in database.", "error")
+        return redirect(url_for('playlist'))
+    return Response(file.read(), mimetype='video/mp4')
+
+
+@app.route('/playlist', methods=["GET", "POST"])
+def playlist():
+    user_id = None
+    videos = []
+
+    if request.method == "POST":
+        user_id = request.form.get("user_id")
+
+    if user_id:
+        # Fetch videos linked to that user_id
+        videos = [
+            file.filename for file in fs.find({"metadata.user_id": user_id})
+        ]
+    else:
+        # Default: show top 5 most recent
+        videos = [
+            file.filename for file in fs.find().sort("uploadDate", -1).limit(5)
+        ]
+
+    return render_template("playlist.html", videos=videos, from_mongo=True)
+
+
 # Run the app
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

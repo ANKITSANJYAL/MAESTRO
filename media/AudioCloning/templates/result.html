@@ -1,24 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Result</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
+
 <body>
+    {% if session.get('user_id') %}
+    <div class="profile-box">
+        Logged in as: <strong>{{ session['user_id'] }}</strong>
+    </div>
+    {% endif %}
+
     <div class="container">
         <h1>Your Video is Ready!</h1>
-        
+
         <!-- Display flash messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
-        
+
         <!-- Video Player -->
         <div class="video-container">
             <video controls controlsList="nodownload">
@@ -26,9 +34,10 @@
                 Your browser does not support the video tag.
             </video>
         </div>
-        
+
         <!-- Download Button -->
         <a href="{{ video_url }}" download="slideshow.mp4" class="btn download-btn">Download Video</a>
     </div>
 </body>
+
 </html>

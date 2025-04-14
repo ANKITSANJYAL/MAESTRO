@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,31 +8,38 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
 </head>
+
 <body>
     <div class="container">
         <h1>Upload Your PDF</h1>
-        
+
         <!-- Display flash messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
-        
+        {% if session.get('user_id') %}
+        <div class="profile-box">
+            Logged in as: <strong>{{ session['user_id'] }}</strong>
+        </div>
+        {% endif %}
+
+
         <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
             <!-- PDF Upload -->
             <label for="pdf">Select PDF File:</label>
             <input type="file" id="pdf" name="pdf" accept=".pdf" required>
-            
+
             <!-- Voice Type Selection -->
             <label for="voice_type">Select Voice Type:</label>
             <select id="voice_type" name="voice_type" required>
                 <option value="default">Default Voice</option>
                 <option value="custom">Custom Voice</option>
             </select>
-            
+
             <!-- Custom Voice Options -->
             <div id="custom-voice-section" style="display: none;">
                 <label>Custom Voice Source:</label>
@@ -41,13 +49,13 @@
                     <input type="radio" id="record" name="voice_source" value="record">
                     <label for="record">Record Voice</label>
                 </div>
-                
+
                 <!-- Upload MP3 -->
                 <div id="upload-options">
                     <label for="custom_voice">Upload Custom Voice File:</label>
                     <input type="file" id="custom_voice" name="custom_voice" accept=".mp3">
                 </div>
-                
+
                 <!-- Record Voice -->
                 <div id="record-options" style="display: none;">
                     <button type="button" id="start-record" class="btn">Start Recording</button>
@@ -55,7 +63,11 @@
                     <audio id="recorded-audio" controls style="margin-top: 10px;"></audio>
                 </div>
             </div>
-            
+
+            <!-- Video Title -->
+            <label for="video_name">Name Your Video:</label>
+            <input type="text" id="video_name" name="video_name" placeholder="e.g. K Nearest Neighbors" required>
+
             <!-- Submit Button -->
             <button type="submit" class="btn">Convert to Video</button>
         </form>
@@ -150,4 +162,5 @@
         });
     </script>
 </body>
+
 </html>

@@ -1,1 +1,1 @@
-Today, we'll explore Nearest Neighbor Classifiers. This algorithm is fundamental in machine learning for classification tasks. Let's dive into understanding how it works and its applications.
+Today, we're diving into Nearest Neighbor Classifiers. This algorithm is a fundamental concept in machine learning. Let's explore how it works and its applications.
