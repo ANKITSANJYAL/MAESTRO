@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Video Access</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to the Student Video Portal</h1>
+    <p>You can watch all generated videos or videos by your professor.</p>
+
+    <form method="POST" action="{{ url_for('playlist') }}">
+      <label for="professor_id">Enter Professor ID (if any):</label>
+      <input type="text" id="professor_id" name="professor_id" placeholder="e.g. prof123">
+      <button type="submit" class="btn">View Videos</button>
+    </form>
+  </div>
+</body>
+</html>

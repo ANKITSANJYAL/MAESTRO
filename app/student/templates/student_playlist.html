@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Playlist</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>
+      {% if professor_id %}
+        Videos by Professor: <code>{{ professor_id }}</code>
+      {% else %}
+        All Available Videos
+      {% endif %}
+    </h1>
+
+    {% if videos %}
+      {% for video in videos %}
+        <div class="video-container">
+          <video controls width="640">
+            <source src="{{ url_for('stream_video', filename=video) }}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          <p>{{ video }}</p>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p>No videos found.</p>
+    {% endif %}
+
+    <a href="{{ url_for('student_home') }}" class="btn">← Back</a>
+  </div>
+</body>
+</html>

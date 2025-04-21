@@ -16,7 +16,6 @@ import pymupdf  # Correct import for PyMuPDF
 from flask import Response
 from mongo_setup import save_video_to_mongo, get_all_video_filenames, get_video_file_by_name, fs
 
-
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Change this to a secure key
@@ -208,7 +207,6 @@ def convert_pdf_to_images(pdf_path):
     
     pdf_document.close()
     return images_dir
-
 
 # Function to generate scripts for images
 def generate_scripts_for_images(images_dir, api_key):
